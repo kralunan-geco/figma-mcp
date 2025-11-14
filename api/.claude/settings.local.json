@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo $MCP_SERVERS)",
+      "mcp__figma__get_metadata",
+      "mcp__figma__get_design_context"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

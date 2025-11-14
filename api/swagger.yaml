@@ -1,0 +1,672 @@
+openapi: 3.0.3
+info:
+  title: Authentication API
+  description: |
+    This API provides authentication and authorization endpoints to support the Login Frame UI functionality.
+
+    ## Features
+    - User login with username/password
+    - Password reset flow
+    - Token-based authentication (JWT)
+    - Session management
+    - Rate limiting for security
+
+    ## Security
+    - All endpoints use HTTPS in production
+    - Passwords are hashed using bcrypt
+    - JWT tokens for authentication
+    - Rate limiting to prevent abuse
+  version: 1.0.0
+  contact:
+    name: API Development Team
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+  - url: https://api.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization operations
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User Login
+      description: Authenticates a user with username and password credentials
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              validCredentials:
+                summary: Valid login credentials
+                value:
+                  username: johndoe
+                  password: SecurePass123!
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              examples:
+                success:
+                  summary: Successful login
+                  value:
+                    success: true
+                    data:
+                      user:
+                        id: "550e8400-e29b-41d4-a716-446655440000"
+                        username: johndoe
+                        email: johndoe@example.com
+                        firstName: John
+                        lastName: Doe
+                        createdAt: "2024-01-15T10:30:00Z"
+                        lastLogin: "2025-11-07T08:45:00Z"
+                      tokens:
+                        accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                        refreshToken: "a3f2c5d8-9b7e-4f1a-8c6d-2e5b4f7a9c1d"
+                        expiresIn: 3600
+                    message: "Login successful"
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                missingUsername:
+                  summary: Missing username field
+                  value:
+                    success: false
+                    error:
+                      code: VALIDATION_ERROR
+                      message: "Invalid request payload"
+                      details:
+                        - field: username
+                          message: "Username is required"
+        '401':
+          description: Unauthorized - invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidCredentials:
+                  summary: Invalid credentials
+                  value:
+                    success: false
+                    error:
+                      code: INVALID_CREDENTIALS
+                      message: "Invalid username or password"
+        '429':
+          description: Too many requests - rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+              examples:
+                rateLimitExceeded:
+                  summary: Rate limit exceeded
+                  value:
+                    success: false
+                    error:
+                      code: RATE_LIMIT_EXCEEDED
+                      message: "Too many login attempts. Please try again later."
+                      retryAfter: 300
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Forgot Password
+      description: |
+        Initiates the password reset process by sending a reset link to the user's email.
+
+        **Note**: Returns the same response regardless of whether the username exists (security best practice).
+        - Reset token expires after 1 hour
+        - Rate limited to prevent abuse
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+            examples:
+              validRequest:
+                summary: Valid forgot password request
+                value:
+                  username: johndoe
+      responses:
+        '200':
+          description: Request processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                success:
+                  summary: Success response
+                  value:
+                    success: true
+                    message: "If an account with that username exists, a password reset link has been sent to the associated email address"
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                validationError:
+                  summary: Validation error
+                  value:
+                    success: false
+                    error:
+                      code: VALIDATION_ERROR
+                      message: "Invalid request payload"
+        '429':
+          description: Too many requests - rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+              examples:
+                rateLimitExceeded:
+                  summary: Rate limit exceeded
+                  value:
+                    success: false
+                    error:
+                      code: RATE_LIMIT_EXCEEDED
+                      message: "Too many requests. Please try again later."
+                      retryAfter: 60
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: Reset Password
+      description: |
+        Resets user password using a valid reset token.
+
+        **Password Requirements**:
+        - Minimum 8 characters
+        - At least 1 uppercase letter
+        - At least 1 lowercase letter
+        - At least 1 number
+        - At least 1 special character
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+            examples:
+              validRequest:
+                summary: Valid password reset
+                value:
+                  token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  newPassword: "NewSecurePass123!"
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                success:
+                  summary: Success response
+                  value:
+                    success: true
+                    message: "Password has been reset successfully"
+        '400':
+          description: Bad request - invalid token or weak password
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - $ref: '#/components/schemas/ValidationError'
+              examples:
+                invalidToken:
+                  summary: Invalid or expired token
+                  value:
+                    success: false
+                    error:
+                      code: INVALID_TOKEN
+                      message: "Reset token is invalid or has expired"
+                weakPassword:
+                  summary: Weak password
+                  value:
+                    success: false
+                    error:
+                      code: WEAK_PASSWORD
+                      message: "Password does not meet security requirements"
+                      details:
+                        - "Password must be at least 8 characters long"
+                        - "Password must contain at least one uppercase letter"
+                        - "Password must contain at least one number"
+                        - "Password must contain at least one special character"
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh Access Token
+      description: Obtains a new access token using a valid refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            examples:
+              validRequest:
+                summary: Valid refresh token
+                value:
+                  refreshToken: "a3f2c5d8-9b7e-4f1a-8c6d-2e5b4f7a9c1d"
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+              examples:
+                success:
+                  summary: Success response
+                  value:
+                    success: true
+                    data:
+                      accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      expiresIn: 3600
+        '401':
+          description: Unauthorized - invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidToken:
+                  summary: Invalid refresh token
+                  value:
+                    success: false
+                    error:
+                      code: INVALID_REFRESH_TOKEN
+                      message: "Refresh token is invalid or has expired"
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout
+      description: Invalidates the current user session and tokens
+      operationId: logout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+            examples:
+              validRequest:
+                summary: Valid logout request
+                value:
+                  refreshToken: "a3f2c5d8-9b7e-4f1a-8c6d-2e5b4f7a9c1d"
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                success:
+                  summary: Success response
+                  value:
+                    success: true
+                    message: "Logout successful"
+        '401':
+          description: Unauthorized - invalid or missing access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unauthorized:
+                  summary: Unauthorized
+                  value:
+                    success: false
+                    error:
+                      code: UNAUTHORIZED
+                      message: "Invalid or missing access token"
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get Current User
+      description: Retrieves information about the currently authenticated user
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+              examples:
+                success:
+                  summary: Success response
+                  value:
+                    success: true
+                    data:
+                      user:
+                        id: "550e8400-e29b-41d4-a716-446655440000"
+                        username: johndoe
+                        email: johndoe@example.com
+                        firstName: John
+                        lastName: Doe
+                        createdAt: "2024-01-15T10:30:00Z"
+                        lastLogin: "2025-11-07T08:45:00Z"
+        '401':
+          description: Unauthorized - invalid or missing access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unauthorized:
+                  summary: Unauthorized
+                  value:
+                    success: false
+                    error:
+                      code: UNAUTHORIZED
+                      message: "Invalid or missing access token"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token obtained from login or refresh endpoints.
+
+        **Format**: `Authorization: Bearer <token>`
+
+        **Token Details**:
+        - Type: JWT (JSON Web Token)
+        - Expiration: 1 hour (3600 seconds)
+        - Contains: User ID, username, roles/permissions
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          description: User's username
+          example: johndoe
+          minLength: 3
+          maxLength: 50
+        password:
+          type: string
+          description: User's password
+          format: password
+          example: SecurePass123!
+          minLength: 8
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            tokens:
+              $ref: '#/components/schemas/Tokens'
+        message:
+          type: string
+          example: "Login successful"
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        username:
+          type: string
+          description: User's username
+          example: johndoe
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: johndoe@example.com
+        firstName:
+          type: string
+          description: User's first name
+          example: John
+        lastName:
+          type: string
+          description: User's last name
+          example: Doe
+        createdAt:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        lastLogin:
+          type: string
+          format: date-time
+          description: Last login timestamp
+          example: "2025-11-07T08:45:00Z"
+
+    Tokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          description: Refresh token for obtaining new access tokens
+          example: "a3f2c5d8-9b7e-4f1a-8c6d-2e5b4f7a9c1d"
+        expiresIn:
+          type: integer
+          description: Access token expiration time in seconds
+          example: 3600
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - username
+      properties:
+        username:
+          type: string
+          description: User's username
+          example: johndoe
+          minLength: 3
+          maxLength: 50
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+          description: Password reset token from email
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        newPassword:
+          type: string
+          description: New password (must meet security requirements)
+          format: password
+          example: "NewSecurePass123!"
+          minLength: 8
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: Valid refresh token
+          example: "a3f2c5d8-9b7e-4f1a-8c6d-2e5b4f7a9c1d"
+
+    RefreshTokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              description: New JWT access token
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            expiresIn:
+              type: integer
+              description: Access token expiration time in seconds
+              example: 3600
+
+    LogoutRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: Refresh token to invalidate
+          example: "a3f2c5d8-9b7e-4f1a-8c6d-2e5b4f7a9c1d"
+
+    CurrentUserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+
+    MessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation successful"
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Error code
+              enum:
+                - INVALID_CREDENTIALS
+                - VALIDATION_ERROR
+                - RATE_LIMIT_EXCEEDED
+                - INVALID_TOKEN
+                - WEAK_PASSWORD
+                - INVALID_REFRESH_TOKEN
+                - UNAUTHORIZED
+              example: INVALID_CREDENTIALS
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Invalid username or password"
+
+    ValidationError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: "Invalid request payload"
+            details:
+              type: array
+              items:
+                oneOf:
+                  - type: object
+                    properties:
+                      field:
+                        type: string
+                        example: username
+                      message:
+                        type: string
+                        example: "Username is required"
+                  - type: string
+                    example: "Password must be at least 8 characters long"
+
+    RateLimitError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: RATE_LIMIT_EXCEEDED
+            message:
+              type: string
+              example: "Too many login attempts. Please try again later."
+            retryAfter:
+              type: integer
+              description: Seconds until rate limit resets
+              example: 300

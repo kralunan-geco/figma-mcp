@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__figma__get_metadata",
+      "mcp__figma__get_design_context",
+      "mcp__figma__get_screenshot",
+      "WebFetch(domain:localhost)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(tree:*)",
+      "Bash(yarn add:*)",
+      "Bash(mv:*)",
+      "Bash(yarn build)",
+      "Bash(yarn dev)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
